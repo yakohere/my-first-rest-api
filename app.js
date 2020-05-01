@@ -64,5 +64,6 @@ mongoose
   .connect(uri)
   .then(() => {
     app.listen(8080);
+    console.log("Connected!!!");
   })
   .catch((err) => console.log(err));
