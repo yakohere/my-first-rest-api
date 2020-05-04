@@ -4,16 +4,14 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
 const multer = require("multer");
-
 const graphqlHttp = require("express-graphql");
+
 const graphqlSchema = require("./graphql/schema");
 const graphqlResolver = require("./graphql/resolvers");
-
-require("dotenv").config();
+const auth = require("./middleware/auth");
+const { clearImage } = require("./util/file");
 
 const app = express();
-
-const uri = process.env.mongodb_uri;
 
 const fileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -56,18 +54,35 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(auth);
+
+app.put("/post-image", (req, res, next) => {
+  if (!req.isAuth) {
+    throw new Error("Not authenticated!");
+  }
+  if (!req.file) {
+    return res.status(200).json({ message: "No file provided!" });
+  }
+  if (req.body.oldPath) {
+    clearImage(req.body.oldPath);
+  }
+  return res
+    .status(201)
+    .json({ message: "File stored.", filePath: req.file.path });
+});
+
 app.use(
   "/graphql",
   graphqlHttp({
     schema: graphqlSchema,
     rootValue: graphqlResolver,
     graphiql: true,
-    formatErrorFn(err) {
+    formatError(err) {
       if (!err.originalError) {
         return err;
       }
       const data = err.originalError.data;
-      const message = err.message || "An error occured!";
+      const message = err.message || "An error occurred.";
       const code = err.originalError.code || 500;
       return { message: message, status: code, data: data };
     },
@@ -83,9 +98,10 @@ app.use((error, req, res, next) => {
 });
 
 mongoose
-  .connect(uri)
-  .then(() => {
+  .connect(
+    "mongodb+srv://devyako:3uDfJ1EJWSXJckwm@cluster0-03doo.gcp.mongodb.net/messages?retryWrites=true&w=majority"
+  )
+  .then((result) => {
     app.listen(8080);
-    console.log("Database Connected!!!");
   })
   .catch((err) => console.log(err));
